@@ -27,8 +27,6 @@ channel.QueueDeclare(
 );
 
 EventingBasicConsumer consumer = new(channel);
-
-Console.WriteLine("[*] Waiting for new messages");
 consumer.Received += async (model, ea) =>
 {
   var body = ea.Body.ToArray();
@@ -46,8 +44,13 @@ consumer.Received += async (model, ea) =>
       Console.WriteLine("[*] Success Payment - Sending requests for PSP and API...");
       httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", message.Token);
       await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
-      await httpClient.PatchAsJsonAsync($"{PSP_URL}/payments/pix", new { Id = message.Id, Status = "SUCCESS" });
-      await httpClient.PatchAsync($"{API_URL}/payments/{message.Id}/SUCCESS", null);
+
+      UpdatePaymentStatusDTO dto = new() { Status = "SUCCESS" };
+      var serializedDTO = JsonConvert.SerializeObject(dto);
+      var content = new StringContent(serializedDTO, Encoding.UTF8, "application/json-patch+json");
+      await httpClient.PatchAsync($"{API_URL}/payments/{message.Id}", content);
+
+      await httpClient.PatchAsJsonAsync($"{PSP_URL}/payments/pix", new { Id = message.Id, Status = dto.Status });
       Console.WriteLine("[*] Success Payment - Requests for PSP and API successfully sent!");
       channel.BasicAck(ea.DeliveryTag, false);
     }
@@ -74,8 +77,13 @@ consumer.Received += async (model, ea) =>
       Console.WriteLine("[*] Failed Payment - Sending requests for PSP and API...");
       httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", message.Token);
       await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
-      await httpClient.PatchAsJsonAsync($"{PSP_URL}/payments/pix", new { Id = message.Id, Status = "FAILED" });
-      await httpClient.PatchAsync($"{API_URL}/payments/{message.Id}/FAILED", null);
+
+      UpdatePaymentStatusDTO dto = new() { Status = "FAILED" };
+      var serializedDTO = JsonConvert.SerializeObject(dto);
+      var content = new StringContent(serializedDTO, Encoding.UTF8, "application/json-patch+json");
+      await httpClient.PatchAsync($"{API_URL}/payments/{message.Id}", content);
+
+      await httpClient.PatchAsJsonAsync($"{PSP_URL}/payments/pix", new { Id = message.Id, Status = dto.Status });
       Console.WriteLine("[*] Failed Payment - Requests for PSP and API successfully sent!");
       channel.BasicReject(ea.DeliveryTag, false);
     }
@@ -103,4 +111,5 @@ channel.BasicConsume(
   consumer: consumer
 );
 
+Console.WriteLine("[*] Waiting for new messages");
 Console.ReadLine();
