@@ -5,18 +5,20 @@ using Newtonsoft.Json;
 using consumer.DTOs;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
+using consumer.Exceptions;
+using consumer.Helpers;
 
 ConnectionFactory factory = new()
 {
-  HostName = "localhost"
+  HostName = "172.17.0.1"
 };
 
 var connection = factory.CreateConnection();
 var channel = connection.CreateModel();
 
-string API_URL = "http://localhost:5180";
+string API_URL = "http://localhost:5000";
 string PSP_URL = "http://localhost:5280";
-HttpClient httpClient = new() 
+HttpClient httpClient = new()
 {
   Timeout = TimeSpan.FromSeconds(120)
 };
@@ -33,13 +35,20 @@ EventingBasicConsumer consumer = new(channel);
 consumer.Received += async (model, ea) =>
 {
   var body = ea.Body.ToArray();
-  PaymentMessageServiceDTO? message = JsonConvert.DeserializeObject<PaymentMessageServiceDTO>(Encoding.UTF8.GetString(body));
+  PaymentMessageServiceDTO? message = ConsumerHelper.GetPaymentMessage(body);
   if (message is null)
   {
     channel.BasicReject(ea.DeliveryTag, false);
+    return;
   }
 
-  long timeToLive = (long)ea.BasicProperties.Headers["time-to-live"];
+  long timeToLive = (long)(ea.BasicProperties.Headers["time-to-live"] ?? 0);
+  if (timeToLive == 0)
+  {
+    channel.BasicReject(ea.DeliveryTag, false);
+    return;
+  }
+
   if (timeToLive > new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds())
   {
     try
@@ -47,6 +56,8 @@ consumer.Received += async (model, ea) =>
       Console.WriteLine("[*] Success Payment - Sending requests for PSP and API...");
       httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", message.Token);
       await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
+      if (timeToLive > new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds())
+        throw new MessageTimeoutException("Tempo máximo para processamento de pagamento excedido.");
 
       UpdatePaymentStatusDTO dto = new() { Status = "SUCCESS" };
       var serializedDTO = JsonConvert.SerializeObject(dto);
@@ -59,7 +70,7 @@ consumer.Received += async (model, ea) =>
     }
     catch
     {
-      Console.WriteLine("[#] Success Payment - Failed to send requests for PSP and API...");
+      Console.WriteLine("[#] Success Payment - Failed to send requests for PSP or/and API...");
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
       channel.BasicPublish(exchange: "",
@@ -88,11 +99,7 @@ consumer.Received += async (model, ea) =>
     }
     catch
     {
-      Console.WriteLine("[#] Failed Payment - Failed to send requests for PSP and API...");
-
-      // PSP or/and API is down - set 5s timeout
-      Thread.Sleep(5000);
-
+      Console.WriteLine("[#] Failed Payment - Failed to send requests for PSP or/and API...");
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
       channel.BasicPublish(exchange: "",
