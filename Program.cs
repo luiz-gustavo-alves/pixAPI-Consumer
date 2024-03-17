@@ -16,7 +16,10 @@ var channel = connection.CreateModel();
 
 string API_URL = "http://localhost:5180";
 string PSP_URL = "http://localhost:5280";
-HttpClient httpClient = new();
+HttpClient httpClient = new() 
+{
+  Timeout = TimeSpan.FromSeconds(120)
+};
 
 channel.QueueDeclare(
   queue: "payments",
@@ -57,10 +60,6 @@ consumer.Received += async (model, ea) =>
     catch
     {
       Console.WriteLine("[#] Success Payment - Failed to send requests for PSP and API...");
-
-      // PSP or API is down - set timeout response
-      Thread.Sleep(3000);
-
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
       channel.BasicPublish(exchange: "",
@@ -91,8 +90,8 @@ consumer.Received += async (model, ea) =>
     {
       Console.WriteLine("[#] Failed Payment - Failed to send requests for PSP and API...");
 
-      // PSP or API is down - set timeout response
-      Thread.Sleep(3000);
+      // PSP or/and API is down - set 5s timeout
+      Thread.Sleep(5000);
 
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
