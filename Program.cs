@@ -55,8 +55,8 @@ consumer.Received += async (model, ea) =>
     {
       Console.WriteLine("[*] Success Payment - Sending requests for PSP and API...");
       httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", message.Token);
-      await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
-      if (timeToLive > new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds())
+      var request = await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
+      if (timeToLive < new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds())
         throw new MessageTimeoutException("Tempo máximo para processamento de pagamento excedido.");
 
       UpdatePaymentStatusDTO dto = new() { Status = "SUCCESS" };
@@ -68,8 +68,9 @@ consumer.Received += async (model, ea) =>
       Console.WriteLine("[*] Success Payment - Requests for PSP and API successfully sent!");
       channel.BasicAck(ea.DeliveryTag, false);
     }
-    catch
+    catch (Exception e)
     {
+      Console.WriteLine(e);
       Console.WriteLine("[#] Success Payment - Failed to send requests for PSP or/and API...");
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
