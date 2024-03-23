@@ -18,7 +18,7 @@ HttpClient httpClient = new()
 /* Payments Consumer */
 ConnectionFactory factory = new()
 {
-  HostName = "localhost"
+  HostName = "172.17.0.1"
 };
 
 var connection = factory.CreateConnection();
