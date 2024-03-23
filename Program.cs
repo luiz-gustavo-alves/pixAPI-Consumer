@@ -8,20 +8,21 @@ using System.Net.Http.Headers;
 using consumer.Exceptions;
 using consumer.Helpers;
 
-ConnectionFactory factory = new()
-{
-  HostName = "172.17.0.1"
-};
-
-var connection = factory.CreateConnection();
-var channel = connection.CreateModel();
-
 string API_URL = "http://localhost:5000";
 string PSP_URL = "http://localhost:5280";
 HttpClient httpClient = new()
 {
   Timeout = TimeSpan.FromSeconds(120)
 };
+
+/* Payments Consumer */
+ConnectionFactory factory = new()
+{
+  HostName = "localhost"
+};
+
+var connection = factory.CreateConnection();
+var channel = connection.CreateModel();
 
 channel.QueueDeclare(
   queue: "payments",
@@ -53,7 +54,7 @@ consumer.Received += async (model, ea) =>
   {
     try
     {
-      Console.WriteLine("[*] Success Payment - Sending requests for PSP and API...");
+      Console.WriteLine("[*] Success Payment - Sending requests to PSP and API...");
       httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", message.Token);
       var request = await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
       if (timeToLive < new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds())
@@ -65,13 +66,12 @@ consumer.Received += async (model, ea) =>
       await httpClient.PatchAsync($"{API_URL}/payments/{message.Id}", content);
 
       await httpClient.PatchAsJsonAsync($"{PSP_URL}/payments/pix", new { Id = message.Id, Status = dto.Status });
-      Console.WriteLine("[*] Success Payment - Requests for PSP and API successfully sent!");
+      Console.WriteLine("[*] Success Payment - Requests to PSP and API successfully sent!");
       channel.BasicAck(ea.DeliveryTag, false);
     }
-    catch (Exception e)
+    catch
     {
-      Console.WriteLine(e);
-      Console.WriteLine("[#] Success Payment - Failed to send requests for PSP or/and API...");
+      Console.WriteLine("[#] Success Payment - Failed to send requests to PSP or/and API...");
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
       channel.BasicPublish(exchange: "",
@@ -85,7 +85,7 @@ consumer.Received += async (model, ea) =>
   {
     try
     {
-      Console.WriteLine("[*] Failed Payment - Sending requests for PSP and API...");
+      Console.WriteLine("[*] Failed Payment - Sending requests to PSP and API...");
       httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", message.Token);
       await httpClient.PostAsJsonAsync($"{PSP_URL}/payments/pix", message.DTO);
 
@@ -95,12 +95,12 @@ consumer.Received += async (model, ea) =>
       await httpClient.PatchAsync($"{API_URL}/payments/{message.Id}", content);
 
       await httpClient.PatchAsJsonAsync($"{PSP_URL}/payments/pix", new { Id = message.Id, Status = dto.Status });
-      Console.WriteLine("[*] Failed Payment - Requests for PSP and API successfully sent!");
+      Console.WriteLine("[*] Failed Payment - Requests to PSP and API successfully sent!");
       channel.BasicReject(ea.DeliveryTag, false);
     }
     catch
     {
-      Console.WriteLine("[#] Failed Payment - Failed to send requests for PSP or/and API...");
+      Console.WriteLine("[#] Failed Payment - Failed to send requests to PSP or/and API...");
       var newHeaders = ea.BasicProperties.Headers;
       channel.BasicReject(ea.DeliveryTag, false);
       channel.BasicPublish(exchange: "",
