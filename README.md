@@ -1,6 +1,6 @@
 # Pix API Payments Consumer
 
-Consumer aplication to estabilish communication with PSPs and proccess payments status from API requests.
+Consumer aplication to estabilish communication with PSPs and process payments status from API requests.
 - Update payment status to `SUCCESS`.
 - Update payment status to `FAILED` (expiration time exceed).
 
@@ -30,4 +30,4 @@ Invalid Message DTO or without "time-to-live" timestamp on header:
 <br>
 
 API or/and PSP unavaible:
-  - Reject and publish message to queue.
+  - Reject and publish same message to queue.
