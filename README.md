@@ -1,17 +1,18 @@
-# Pix API Consumer
+# Pix API Payments Consumer
 
-Aplicação externa para realizar a comunicação para as PSPs (destino e origem) e processamento do pagamento das requisições feitas pela Pix API.
-- No caso de sucesso, atualizar o pagamento para `SUCCESS`.
-- No caso de falha, atualizar o pagamento para `FAILED`.
+Consumer aplication to estabilish communication with PSPs and proccess payments status from API requests.
+- Update payment status to `SUCCESS`.
+- Update payment status to `FAILED` (expiration time exceed).
 
-## Intruções para Subir os Containers da Aplicação
-- Com Docker iniciado, utilize o comando `docker compose up -d` para iniciar o container do rabbitMQ.
+## How to Install and Run the Project
+Clone this repository: `git clone https://github.com/luiz-gustavo-alves/pixAPI-Payments-Consumer.git`
+<br>
+Access root folder and run consumer environment:
+```bash
+dotnet run
+```
 
-## Instruções para Executar o Projeto
-- Clone este repositório com o comando `git clone https://github.com/luiz-gustavo-alves/pixAPI-consumer.git`;
-- Com o container do rabbitMQ inciado, utilize o comando `dotnet run` para subir a aplicação.
-
-## Escopo (DTO) da Mensagem
+## Message DTO
 ```c#
 public class PaymentMessageServiceDTO
 {
@@ -22,16 +23,11 @@ public class PaymentMessageServiceDTO
 }
 ```
 
-## Tratamento de Erros
-- Mensagem que não pertence o mesmo escopo do DTO especificado:
-  - Reject automático da mensagem.
-
-<br>
-
-- Mensagem que não possui o timestamp "time-to-live" no cabeçalho (header):
-  - Reject automático da mensagem.
+## Error Handler
+Invalid Message DTO or without "time-to-live" timestamp on header:
+  - Reject message.
  
 <br>
 
-- API ou PSP indisponíveis:
-  - Reject e novo Publish da mensagem na fila.
+API or/and PSP unavaible:
+  - Reject and publish message to queue.
